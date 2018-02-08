@@ -8,7 +8,7 @@ import bs4 as bs
 from selenium import webdriver
 
 
-conn = sqlite3.connect('box_office.db')
+conn = sqlite3.connect("D:\\box_office\\box_office.db")
 c = conn.cursor()
 
 def create_theaters_table():
@@ -600,28 +600,49 @@ def ticket_prices(screening_url):
     """
     browser = open_browser(screening_url)
     soup = bs.BeautifulSoup(browser.page_source, 'lxml')
+    error = soup.find('section', {'class': 'errorMessages'})
+    
 
-    auditorium = soup.find('h2', {'id': 'auditoriumInfo'}).text
-    tickets_table = soup.find('table', {'class': 'quantityTable'})
-    tickets_rows = tickets_table.find_all('tr')
-
-    for ticket_row in tickets_rows:
-        ticket_type = ticket_row.find('input', {'name': 'pricedesc'})
-        price = ticket_row.find('input', {'name': 'price'})
-        yield ticket_type['value'], price['value'], auditorium
-    browser.quit()
+    if error:
+        error_message = soup.find('div', {'class': 'errorHeaderMessage'}).text
+        browser.quit()
+        yield error_message
+    else:
+        #auditorium = soup.find('h2', {'id': 'auditoriumInfo'}).text
+        auditorium = soup.find('h2', {'id': 'auditoriumInfo'})
+        tickets_table = soup.find('table', {'class': 'quantityTable'})
+        tickets_rows = tickets_table.find_all('tr')
+        if auditorium is not None:   
+            for ticket_row in tickets_rows:
+                ticket_type = ticket_row.find('input', {'name': 'pricedesc'})
+                price = ticket_row.find('input', {'name': 'price'})
+                yield ticket_type['value'], price['value'], auditorium.text
+            browser.quit()
+        else:
+            for ticket_row in tickets_rows:
+                ticket_type = ticket_row.find('input', {'name': 'pricedesc'})
+                price = ticket_row.find('input', {'name': 'price'})
+                yield ticket_type['value'], price['value'], auditorium
+            browser.quit()
 
 def get_ticket_prices(today):
     """
     Calls functions to get ticket prices and auditorium for each screening today.
     """
     showtimes_today = from_db_get_daily_screenings(today)
+    e1 = '\n        This showtime is no longer available. Please select a different showtime.\n        '
+
     for showtime in showtimes_today:
         screening_id = showtime[0]
         for ticket_price in ticket_prices(showtime[1]):
-            insert_ticket(screening_id, ticket_price[0], ticket_price[1])
-            auditorium = ticket_price[2]
-        update_screening_auditorium(screening_id, auditorium)
+            if ticket_price == e1:
+                print('This showtime is no longer available')
+                auditorium = None
+            else:           
+                insert_ticket(screening_id, ticket_price[0], ticket_price[1])
+                auditorium = ticket_price[2]
+        if auditorium is not None:
+            update_screening_auditorium(screening_id, auditorium)
 
 def seats(screening_url):
     """
@@ -674,10 +695,11 @@ def schedule_task(showtime_id, showtime_url, stime):
     """
     task_time = stime.replace(':', '-')
     tname = 'scrn ' + str(showtime_id) + ' at ' + task_time
-    script_location = "D:\\programming\\py\\box_office\\box_office.py"
-    trun = "PowerShell python %s -seats '%s' -st" % (script_location, showtime_url)
-    task = """cd D:\\box_office; schtasks /create /tn "%s" /sc once /st %s /tr "%s" """ % (tname, stime, trun)
+    script_location = "D:\\box_office\\box_office.py"
+    trun = "cd D:\\box_office; PowerShell python %s -seats '%s' -st" % (script_location, showtime_url)
+    task = """cd D:\\box_office; schtasks /create /tn "%s" /sc once /st %s /tr "%s" /f """ % (tname, stime, trun)
     print(task)
+    
     subprocess.call("""%s""" % task)
     print('Created task: ', tname)
 
@@ -735,8 +757,9 @@ def main():
         for theater_url in theater_urls:
             get_movies(theater_url[0])
             get_showtimes(theater_url[0])
-            get_ticket_prices(today_string)
-            queue_times(today_string)
+            
+        get_ticket_prices(today_string)    
+        queue_times(today_string)
     elif args.insert_theater_name:
         if args.url_theater:
             insert_theater(args.insert_theater_name, args.url_theater)
@@ -752,8 +775,7 @@ def main():
         for theater_url in theater_urls:
             get_showtimes(theater_url[0])
     elif args.tickets:
-        for theater_url in theater_urls:
-            get_ticket_prices(today_string)
+        get_ticket_prices(today_string)
 
 if __name__ == '__main__':
     main()
