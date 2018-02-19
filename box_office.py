@@ -3,12 +3,14 @@ import datetime
 import re
 import argparse
 import subprocess
+import sys
+import os
 import sqlite3
 import bs4 as bs
 from selenium import webdriver
 
 
-conn = sqlite3.connect("D:\\box_office\\box_office.db")
+conn = sqlite3.connect('box_office//box_office.db')
 c = conn.cursor()
 
 def create_theaters_table():
@@ -155,7 +157,8 @@ def insert_theater(theater_name, theater_url):
             c.execute("INSERT INTO theaters(theater_name, theater_url) VALUES (?, ?)",
                       (theater_name, theater_url))
     except sqlite3.IntegrityError:
-        print('Could not add theater.  Theater: %s exists in database' % theater_name)
+        err_msg = 'Could not add theater.  Theater: %s exists in database' % theater_name
+        sys.stdout.write(err_msg + '\n')
 
 def insert_movie(movie_title):
     """
@@ -166,7 +169,8 @@ def insert_movie(movie_title):
             c.execute("INSERT INTO movies(movie_title) VALUES (?)",
                       (movie_title,))
     except sqlite3.IntegrityError:
-        print('Could not add movie.  Movie: %s exists in database' % movie_title)
+        err_msg = 'Could not add movie.  Movie: %s exists in database' % movie_title
+        sys.stdout.write(err_msg + '\n')
 
 def insert_movie_location(movie_id, theater_id):
     """
@@ -183,9 +187,11 @@ def insert_movie_location(movie_id, theater_id):
                 c.execute("INSERT INTO movie_locations(movie_id, theater_id) VALUES (?, ?)",
                           (movie_id, theater_id))
             else:
-                print("Movie with id %s has already been added to this location" % movie_id)
+                msg = "Movie with id %s has already been added to this location" % movie_id
+                sys.stdout.write(msg + '\n')
     except sqlite3.IntegrityError:
-        print("Could not add movie location")
+        err_msg = 'Could not add movie location'
+        sys.stdout.write(err_msg + '\n')
 
 def insert_screening(screening_url, movie_location_id, screening_date_time,
                      screening_type, reserved_seating):
@@ -207,7 +213,8 @@ def insert_screening(screening_url, movie_location_id, screening_date_time,
                       (screening_url, movie_location_id, screening_date_time[0],
                        screening_date_time[1], screening_type, reserved_seating))
     except sqlite3.IntegrityError:
-        print('Could not add screening for %s at %s' % (movie_location_id, screening_date_time[1]))
+        err_msg = 'Could not add screening for %s at %s' % (movie_location_id, screening_date_time[1])
+        sys.stdout.write(err_msg + '\n')
 
 def insert_ticket(screening_id, ticket_desc, ticket_price):
     """
@@ -223,9 +230,11 @@ def insert_ticket(screening_id, ticket_desc, ticket_price):
                              VALUES (?,?,?)""",
                           (screening_id, ticket_desc, ticket_price))
             else:
-                print("Ticket data has already been added for screening: %s" % screening_id)
+                msg = "Ticket data has already been added for screening: %s" % screening_id
+                sys.stdout.write(msg + '\n')
     except sqlite3.IntegrityError:
-        print("Error inserting ticket data")
+        err_msg = "Error inserting ticket data"
+        sys.stdout.write(err_msg + '\n')
 
 def insert_seat(screening_id, seat_location, seat_type, seat_status):
     """
@@ -241,9 +250,11 @@ def insert_seat(screening_id, seat_location, seat_type, seat_status):
                              VALUES (?,?,?,?)""",
                           (screening_id, seat_location, seat_type, seat_status))
             else:
-                print("Seat: %s has already been added for this screening" % seat_location)
+                msg = "Seat: %s has already been added for this screening" % seat_location
+                sys.stdout.write(msg + '\n')
     except sqlite3.IntegrityError:
-        print("Error inserting seat")
+        err_msg = "Error inserting seat"
+        sys.stdout.write(err_msg + '\n')
 
 def from_db_get_theater_id(theater_url):
     """
@@ -693,15 +704,9 @@ def schedule_task(showtime_id, showtime_url, stime):
     """
     Schedules script to run using Schtasks in Windows PowerShell.
     """
-    task_time = stime.replace(':', '-')
-    tname = 'scrn ' + str(showtime_id) + ' at ' + task_time
-    script_location = "D:\\box_office\\box_office.py"
-    trun = "cd D:\\box_office; PowerShell python %s -seats '%s' -st" % (script_location, showtime_url)
-    task = """cd D:\\box_office; schtasks /create /tn "%s" /sc once /st %s /tr "%s" /f """ % (tname, stime, trun)
-    print(task)
-    
-    subprocess.call("""%s""" % task)
-    print('Created task: ', tname)
+    command = """echo 'python3 box_office/box_office.py -st -seats '%s'""" % (showtime_url)
+    at = """at '%s' -m""" % (stime)
+    os.system(command + ' | ' + at)
 
 def queue_times(today):
     """
