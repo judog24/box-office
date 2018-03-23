@@ -8,7 +8,7 @@ import os
 import sqlite3
 import bs4 as bs
 from selenium import webdriver
-
+from selenium.webdriver.firefox.options import Options
 
 conn = sqlite3.connect('box_office//box_office.db')
 c = conn.cursor()
@@ -462,7 +462,9 @@ def open_browser(url):
     """
     Waits 3 seconds for page to load before performing actions
     """
-    browser = webdriver.Firefox()
+    options = Options()
+    options.add_argument("--headless")
+    browser = webdriver.Firefox(firefox_options=options, executable_path=r'box_office/geckodriver')
     browser.get(url)
     time.sleep(3)
     return browser
@@ -704,7 +706,7 @@ def schedule_task(showtime_id, showtime_url, stime):
     """
     Schedules script to run using Schtasks in Windows PowerShell.
     """
-    command = """echo 'python3 box_office/box_office.py -st -seats '%s'""" % (showtime_url)
+    command = """echo 'python3 box_office/box_office.py -st -seats "%s" ' """ % (showtime_url)
     at = """at '%s' -m""" % (stime)
     os.system(command + ' | ' + at)
 
